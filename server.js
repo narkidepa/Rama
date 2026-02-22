@@ -6,11 +6,12 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const OPENCODE_API_KEY = "OPENCODE_API_KEY";
 const OPENCODE_BASE_URL = 'https://opencode.ai/zen/v1';
 
+// আপনার স্ক্রিপ্ট অনুযায়ী মডেল লিস্ট
 const FREE_MODELS = [
   { id: 'big-pickle', name: 'Big Pickle', provider: 'OpenCode' },
+  { id: 'glm-4.7-free', name: 'GLM 4.7 Free', provider: 'Zhipu' },
   { id: 'minimax-m2.5-free', name: 'MiniMax M2.5 Free', provider: 'MiniMax' },
   { id: 'glm-5-free', name: 'GLM 5 Free', provider: 'Zhipu' },
   { id: 'kimi-k2.5-free', name: 'Kimi K2.5 Free', provider: 'Moonshot' },
@@ -21,8 +22,9 @@ app.get('/models', (req, res) => {
   res.json({ models: FREE_MODELS });
 });
 
+// এই রাউটটি এখন সব সময় ট্রু রিটার্ন করবে যেহেতু কি লাগছে না
 app.get('/api-key', (req, res) => {
-  res.json({ configured: !!OPENCODE_API_KEY });
+  res.json({ configured: true });
 });
 
 app.post('/chat', async (req, res) => {
@@ -32,31 +34,16 @@ app.post('/chat', async (req, res) => {
     return res.status(400).json({ error: 'Message is required' });
   }
 
-  const modelInfo = FREE_MODELS.find(m => m.id === model);
-  if (!modelInfo) {
-    return res.status(400).json({
-      error: 'Model not found',
-      available_models: FREE_MODELS.map(m => m.id)
-    });
-  }
-
-  if (!OPENCODE_API_KEY) {
-    return res.status(401).json({
-      error: 'API key not configured',
-      instructions: 'Set OPENCODE_API_KEY environment variable'
-    });
-  }
-
   try {
     const messages = [
       ...history.map(h => ({ role: h.role, content: h.content })),
       { role: 'user', content: message }
     ];
 
+    // রিকোয়েস্ট পাঠানো হচ্ছে (Authorization header ছাড়া)
     const response = await fetch(`${OPENCODE_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENCODE_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -93,7 +80,7 @@ app.get('/', (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OpenCode AI Chat</title>
+  <title>OpenCode AI Chat (Free)</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -108,6 +95,208 @@ app.get('/', (req, res) => {
       padding: 20px;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 0;
+      border-bottom: 1px solid #30363d;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 1.5rem; color: #58a6ff; }
+    .model-select {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .model-select label { color: #8b949e; }
+    .model-select select {
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #161b22;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+      overflow: hidden;
+    }
+    .messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      min-height: 400px;
+      max-height: 60vh;
+    }
+    .message {
+      margin-bottom: 20px;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .message.user { text-align: right; }
+    .message-content {
+      display: inline-block;
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      text-align: left;
+    }
+    .message.user .message-content { background: #238636; color: #fff; border-bottom-right-radius: 4px; }
+    .message.assistant .message-content { background: #21262d; color: #c9d1d9; border-bottom-left-radius: 4px; }
+    .input-container {
+      display: flex;
+      gap: 10px;
+      padding: 15px;
+      background: #0d1117;
+      border-top: 1px solid #30363d;
+    }
+    .input-container input {
+      flex: 1;
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 12px 16px;
+      border-radius: 8px;
+      outline: none;
+    }
+    .input-container button {
+      background: #238636;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .input-container button:disabled { background: #21262d; }
+    .clear-btn {
+      background: transparent;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 OpenCode Free Chat</h1>
+      <div class="model-select">
+        <label>Model:</label>
+        <select id="modelSelect">
+          ${FREE_MODELS.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
+        </select>
+      </div>
+    </header>
+
+    <div class="chat-container">
+      <div class="messages" id="messages">
+        <div class="message assistant">
+          <div class="message-content">হ্যালো! আমি OpenCode AI (Free Mode)। কোনো API Key ছাড়াই আপনি চ্যাট করতে পারেন। 🚀</div>
+        </div>
+      </div>
+      <div class="input-container">
+        <input type="text" id="messageInput" placeholder="আপনার মেসেজ লিখুন..." autocomplete="off">
+        <button id="sendBtn">পাঠান</button>
+        <button class="clear-btn" id="clearBtn">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const messagesDiv = document.getElementById('messages');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const modelSelect = document.getElementById('modelSelect');
+
+    let chatHistory = [];
+
+    function addMessage(content, role) {
+      const div = document.createElement('div');
+      div.className = 'message ' + role;
+      div.innerHTML = '<div class="message-content"></div>';
+      div.querySelector('.message-content').textContent = content; // Security: use textContent
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const message = messageInput.value.trim();
+      if (!message) return;
+
+      const model = modelSelect.value;
+      addMessage(message, 'user');
+      messageInput.value = '';
+      
+      sendBtn.disabled = true;
+
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message,
+            model: model,
+            history: chatHistory
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          addMessage('Error: ' + (data.error || 'API call failed'), 'assistant');
+        } else {
+          addMessage(data.message, 'assistant');
+          chatHistory.push({ role: 'user', content: message });
+          chatHistory.push({ role: 'assistant', content: data.message });
+        }
+
+      } catch (error) {
+        addMessage('Error: ' + error.message, 'assistant');
+      }
+
+      sendBtn.disabled = false;
+      messageInput.focus();
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      messagesDiv.innerHTML = '<div class="message assistant"><div class="message-content">চ্যাট ক্লিয়ার করা হয়েছে। নতুন করে শুরু করুন।</div></div>';
+      chatHistory = [];
+    });
+  </script>
+</body>
+</html>
+  `);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🌐 OpenCode Free Chat Server: http://localhost:${PORT}`);
+  console.log(`Using models: ${FREE_MODELS.map(m => m.id).join(', ')}`);
+});
+         display: flex;
       flex-direction: column;
     }
     header {
